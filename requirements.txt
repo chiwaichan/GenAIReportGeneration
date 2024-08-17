@@ -1,0 +1,3 @@
+reportlab
+matplotlib
+boto3
