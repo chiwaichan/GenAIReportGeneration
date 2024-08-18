@@ -52,7 +52,7 @@ def invoke_model(prompt):
 
 
 def calculate_weighted_score(fields, weights):
-    invoke_model("Hello")
+    
     """Calculate a weighted confidence score based on provided weights."""
     total_score = 0
     total_weight = sum(weights.values())
@@ -84,6 +84,7 @@ def generate_chart(data, chart_title):
     return buffer
 
 def generate_report(data, file_name, weights):
+    invoke_model(f"Tell me what you see in this JSON string {json.dumps(data)}")
     # Create the PDF document
     processed_files = data["processed_files"]
     extracted_files = data["extracted_files"]
