@@ -160,26 +160,30 @@ def generate_report(data, file_name, weights):
     # Build the PDF
     pdf.build(elements)
 
-data = [
-    {
-        'document_name': 'Invoice_001.pdf',
-        'fields': [
-            {'name': 'Invoice Number', 'value': 'INV-1001', 'confidence': 0.98},
-            {'name': 'Date', 'value': '2024-08-10', 'confidence': 0.95},
-            {'name': 'Total Amount', 'value': '$1,250.00', 'confidence': 0.96},
-        ],
-        'errors': 'None'
-    },
-    {
-        'document_name': 'Invoice_002.pdf',
-        'fields': [
-            {'name': 'Invoice Number', 'value': 'INV-1002', 'confidence': 0.88},
-            {'name': 'Date', 'value': '2024-08-12', 'confidence': 0.90},
-            {'name': 'Total Amount', 'value': '$2,350.00', 'confidence': 0.89},
-        ],
-        'errors': 'Minor misalignment on total amount'
-    }
-]
+data = {
+    "report_context": "",
+    "high_level": "",
+    "sections":    [
+        {
+            'document_name': 'Invoice_001.pdf',
+            'fields': [
+                {'name': 'Invoice Number', 'value': 'INV-1001', 'confidence': 0.98},
+                {'name': 'Date', 'value': '2024-08-10', 'confidence': 0.95},
+                {'name': 'Total Amount', 'value': '$1,250.00', 'confidence': 0.96},
+            ],
+            'errors': 'None'
+        },
+        {
+            'document_name': 'Invoice_002.pdf',
+            'fields': [
+                {'name': 'Invoice Number', 'value': 'INV-1002', 'confidence': 0.88},
+                {'name': 'Date', 'value': '2024-08-12', 'confidence': 0.90},
+                {'name': 'Total Amount', 'value': '$2,350.00', 'confidence': 0.89},
+            ],
+            'errors': 'Minor misalignment on total amount'
+        }
+    ]
+}
 
 # Define weights for each field
 weights = {
