@@ -5,11 +5,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from datetime import datetime
 import matplotlib.pyplot as plt
 from io import BytesIO
-
-
 import boto3
 import json
-
 from botocore.exceptions import ClientError
 
 # Create a Bedrock Runtime client in the AWS Region of your choice.
@@ -54,11 +51,6 @@ def invoke_model(prompt):
     print(response_text)
 
 
-
-
-
-
-
 def calculate_weighted_score(fields, weights):
     invoke_model("Hello")
     """Calculate a weighted confidence score based on provided weights."""
@@ -71,11 +63,14 @@ def calculate_weighted_score(fields, weights):
 
 def generate_chart(data, chart_title):
     """Generate a bar chart for the weighted confidence scores."""
-    doc_names = [item['document_name'] for item in data]
-    scores = [item['weighted_score'] for item in data]
+    extracted_files = data["extracted_files"]
+    processed_files = data["processed_files"]
+
+    doc_names_extracted_files = [item['document_name'] for item in extracted_files]
+    scores_extracted_files = [item['weighted_score'] for item in extracted_files]
 
     plt.figure(figsize=(10, 6))
-    plt.bar(doc_names, scores, color='skyblue')
+    plt.bar(doc_names_extracted_files, scores_extracted_files, color='skyblue')
     plt.xlabel('Document Name')
     plt.ylabel('Weighted Confidence Score')
     plt.title(chart_title)
@@ -90,6 +85,8 @@ def generate_chart(data, chart_title):
 
 def generate_report(data, file_name, weights):
     # Create the PDF document
+    processed_files = data["processed_files"]
+    extracted_files = data["extracted_files"]
     pdf = SimpleDocTemplate(file_name, pagesize=A4)
     elements = []
     
@@ -106,15 +103,15 @@ def generate_report(data, file_name, weights):
     
     job_summary = f"""
     <b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>
-    <b>Total Documents Processed:</b> {len(data)}<br/>
+    <b>Total Tables Extracted from Source Document:</b> {len(processed_files)}<br/>
     <b>Job Status:</b> Completed<br/>
     """
     elements.append(Paragraph("Job Summary", heading_style))
     elements.append(Paragraph(job_summary, normal_style))
     elements.append(Spacer(1, 12))
     
-    # Calculate weighted scores and add details for each document
-    for doc in data:
+    # Calculate weighted scores and add details for each document in processed_files
+    for doc in processed_files:
         doc['weighted_score'] = calculate_weighted_score(doc['fields'], weights)
         doc_details = f"""
         <b>Document Name:</b> {doc['document_name']}<br/>
@@ -151,6 +148,10 @@ def generate_report(data, file_name, weights):
         elements.append(table)
         elements.append(Spacer(1, 24))
     
+    # Calculate weighted scores for extracted_files (this was missing)
+    for doc in extracted_files:
+        doc['weighted_score'] = calculate_weighted_score(doc['fields'], weights)
+    
     # Generate and add chart
     chart_buffer = generate_chart(data, "Weighted Confidence Scores by Document")
     chart_image = Image(chart_buffer, width=400, height=300)
@@ -163,22 +164,44 @@ def generate_report(data, file_name, weights):
 data = {
     "report_context": "",
     "high_level": "",
-    "sections":    [
+    "extracted_files":    [
         {
-            'document_name': 'Invoice_001.pdf',
+            'document_name': 'raw/table_1.csv',
+            'method': 'ocr',
             'fields': [
-                {'name': 'Invoice Number', 'value': 'INV-1001', 'confidence': 0.98},
-                {'name': 'Date', 'value': '2024-08-10', 'confidence': 0.95},
-                {'name': 'Total Amount', 'value': '$1,250.00', 'confidence': 0.96},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96},
             ],
             'errors': 'None'
         },
         {
-            'document_name': 'Invoice_002.pdf',
+            'document_name': 'raw/table_2.csv',
+            'method': 'ocr',
             'fields': [
-                {'name': 'Invoice Number', 'value': 'INV-1002', 'confidence': 0.88},
-                {'name': 'Date', 'value': '2024-08-12', 'confidence': 0.90},
-                {'name': 'Total Amount', 'value': '$2,350.00', 'confidence': 0.89},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89},
+            ],
+            'errors': 'Minor misalignment on total amount'
+        }
+    ],
+    "processed_files":    [
+        {
+            'document_name': 'processed/table_1.csv',
+            'fields': [
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96},
+            ],
+            'errors': 'None'
+        },
+        {
+            'document_name': 'processed/table_2.csv',
+            'fields': [
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89},
             ],
             'errors': 'Minor misalignment on total amount'
         }
