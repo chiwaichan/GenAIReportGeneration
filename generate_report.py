@@ -23,7 +23,7 @@ def invoke_model(prompt):
     native_request = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 512,
-        "temperature": 0.5,
+        "temperature": 0.0,
         "messages": [
             {
                 "role": "user",
@@ -48,7 +48,9 @@ def invoke_model(prompt):
 
     # Extract and print the response text.
     response_text = model_response["content"][0]["text"]
-    print(response_text)
+    # print(response_text)
+
+    return response_text
 
 
 def calculate_weighted_score(fields, weights):
@@ -84,7 +86,8 @@ def generate_chart(data, chart_title):
     return buffer
 
 def generate_report(data, file_name, weights):
-    invoke_model(f"Tell me what you see in this JSON string {json.dumps(data)}")
+    # invoke_model(f"Tell me what you see in this JSON string {json.dumps(data)}")
+
     # Create the PDF document
     processed_files = data["processed_files"]
     extracted_files = data["extracted_files"]
@@ -118,17 +121,29 @@ def generate_report(data, file_name, weights):
         <b>Document Name:</b> {doc['document_name']}<br/>
         <b>Total Fields Extracted:</b> {len(doc['fields'])}<br/>
         <b>Weighted Confidence Score:</b> {doc['weighted_score']:.2f}<br/>
-        <b>Errors Encountered:</b> {doc['errors']}<br/>
+        <b>Processing steps for File:</b> {'<br/>'.join(doc['processing_steps'])}<br/>
+
+        <br/>
+        <br/>
         """
         elements.append(Paragraph(f"Document: {doc['document_name']}", heading_style))
         elements.append(Paragraph(doc_details, normal_style))
         
         # Table Data
-        table_data = [['Field Name', 'Extracted Value', 'Confidence Score', 'Weight']]  # Header
+        table_data = [['Field Name', 'Extracted Value', 'Confidence Score', 'Weight', 'Notes']]  # Header
         for field in doc['fields']:
             weight = weights.get(field['name'], 1)
-            table_data.append([field['name'], field['value'], f"{field['confidence']:.2f}", weight])
-        
+            confidence_score, confidence_score_explaination = invoke_model(f"Give me a confidence score out of 1.0 for the following notes about processing a table of data, give me a response like this where the score is returned and the detailed explantion followings a '|': '0.92 | This is the explanation and so on'. If the Notes are 'None' then that is a good thing. The notes is: {''.join([note + ' ' for note in field['processing_notes']])}").split('|', 1)
+
+            print(f"confidence_score {confidence_score}")
+            table_data.append([
+                        field['name'], 
+                        field['value'], 
+                        confidence_score, 
+                        weight, 
+                        ''.join([note + ' ' for note in field['processing_notes']])
+                    ])
+
         # Create a Table
         table = Table(table_data)
         
@@ -170,41 +185,41 @@ data = {
             'document_name': 'raw/table_1.csv',
             'method': 'ocr',
             'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98, 'processing_notes': ['Spelling Mistakes.']},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95, 'processing_notes': ['Missing Values.']},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96, 'processing_notes': ['None.']},
             ],
-            'errors': 'None'
+            'processing_steps': ['None.']
         },
         {
             'document_name': 'raw/table_2.csv',
             'method': 'ocr',
             'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88, 'processing_notes': ['None.']},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90, 'processing_notes': ['None.']},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89, 'processing_notes': ['None.']},
             ],
-            'errors': 'Minor misalignment on total amount'
+            'processing_steps': ['Minor misalignment on total amount.']
         }
     ],
     "processed_files":    [
         {
             'document_name': 'processed/table_1.csv',
             'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98, 'processing_notes': ['Spelling Mistakes for 1/10 rows.']},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95, 'processing_notes': ['Missing Values for 1/10 rows.']},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96, 'processing_notes': ['None.']},
             ],
-            'errors': 'None'
+            'processing_steps': ['None.']
         },
         {
             'document_name': 'processed/table_2.csv',
             'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89},
+                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88, 'processing_notes': ['None.']},
+                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90, 'processing_notes': ['None.']},
+                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89, 'processing_notes': ['None.']},
             ],
-            'errors': 'Minor misalignment on total amount'
+            'processing_steps': ['Fixed spelling mistake in 10/10 rows.', 'did some other stuff.']
         }
     ]
 }
