@@ -175,27 +175,49 @@ def generate_report(data, file_name):
     pdf.build(elements)
 
 def populate_with_values(data):
+    overall_sub_prompt = []
+
     for step in data['processing_steps']:
         print(f"Step Name: {step['step_name']}")
+
+        step_sub_prompt = []
         
         # Loop over processing sub-steps
         for sub_step in step['processing_sub_steps']:
-            print(f"  Sub Step Name: {sub_step['sub_step_name']}")
-            print(f"  File Name: {sub_step['file_name']}")
-            print(f"  Processing Notes: {', '.join(sub_step['processing_notes'])}")
+            # print(f"  Sub Step Name: {sub_step['sub_step_name']}")
+            # print(f"  File Name: {sub_step['file_name']}")
+            # print(f"  Processing Notes: {', '.join(sub_step['processing_notes'])}")
 
-            confidence_score_response = invoke_model(f"Give me a confidence score out of 1.0 for the following notes about processing a table of data, give me a response like this where the score is returned and the detailed explantion followings a '|': '0.92 | This is the explanation and so on'. If the Notes are 'None' then that is a good thing. The notes is: {''.join([note + ' ' for note in sub_step['processing_notes']])}").split('|', 1)
+            sub_confidence_score_response = invoke_model(f"Give me a confidence score out of 1.0 for the following notes about processing a table of data, give me a response like this where the score is returned and summary is provided in a reporting style: '0.92 | The summary'. If the Notes are 'None' then that is a good thing. The reader of the report is is non-technical. Do not include a premable; do not include in the summary wording like 'For the non-technical reader:'. The notes is: {''.join([note + ' ' for note in sub_step['processing_notes']])}").split('|', 1)
 
-            sub_step["confidence_score"] = confidence_score = confidence_score_response[0]
-            sub_step["confidence_score_explanation"] = confidence_score_explanation = confidence_score_response[1]
+            sub_step["confidence_score"] = sub_confidence_score = sub_confidence_score_response[0]
+            sub_step["confidence_score_explanation"] = sub_confidence_score_explanation = sub_confidence_score_response[1]
 
             # print(f"me score {confidence_score_response}")
 
-    
+            step_sub_prompt.append(f"The confidence score is {sub_confidence_score} for this sub processing step: {sub_confidence_score_explanation}.")
 
+
+        confidence_score_response = invoke_model(f"Give me a confidence score out of 1.0 for the following sub processing step for a list of table containing data, give me a response the total weighted confidence score of the sub processing steps calculated and a high-level summary of the sub processing steps is provided in a reporting style: '0.8 | high-level summary of the sub processing steps'. The reader of the report is is non-technical. Do not include a premable; do not include in the summary wording like 'For the non-technical reader:'. The notes is: {step_sub_prompt}").split('|', 1)
+
+        step["confidence_score"] = confidence_score = confidence_score_response[0]
+        step["confidence_score_explanation"] = confidence_score_explanation = confidence_score_response[1]
+
+        overall_sub_prompt.append(f"The confidence score is {confidence_score} for this processing step: {confidence_score_explanation}.")
+        # print("confidence_score_response")
+        # print(confidence_score_response)
+
+
+    overall_confidence_score_response = invoke_model(f"Give me a confidence score out of 1.0 for the following processing steps for tables containing data, give me a response the total weighted confidence score of the processing steps calculated and a high-level summary of the  processing steps is provided in a reporting style: '0.8 | high-level summary of the sub processing steps'. The reader of the report is is non-technical. Do not include a premable; do not include in the summary wording like 'For the non-technical reader:'. Consider the context of the business that uses the output of this processing job: {data['report_context']}. Add some bias to the weights of processing tasks that contained data that isn't corrected.  The notes is: {overall_sub_prompt}").split('|', 1)
+
+    data["confidence_score"] = overall_confidence_score = overall_confidence_score_response[0]
+    data["confidence_score_explanation"] = overall_confidence_score_explanation = overall_confidence_score_response[1]
+
+    # print("confidence_score_response")
+    # print(confidence_score_response)
 
 data = {
-    "report_context": "",
+    "report_context": "This data being processed needs to be highly accurate and errors in processing kept to a minimum, the business that uses the output of this processing output belongs to an industry that is highly regulated, so failure to produce an accurate output will result in fines in business.",
     "high_level": "",
     "processing_steps":    [
         {
@@ -206,7 +228,7 @@ data = {
                 {'sub_step_name': 'created file 1', 'file_name': 'raw/table_1.csv', 'processing_notes': ['Found 100 rows.', 
                                                                                                          'Found 90/100 rows is relevant data.', 
                                                                                                          'Deleted 3 Rows that are used for Totals.']},
-                {'sub_step_name': 'created file 2', 'file_name': 'raw/table_2.csv', 'processing_notes': ['Missing Values.']},
+                {'sub_step_name': 'created file 2', 'file_name': 'raw/table_2.csv', 'processing_notes': ['100 rows found.', '20 rows could not be found in the data set lookup, so Bedrock was used to correct the spelling, however, with the help of Bedrock 5 rows were corrected and could be successfully used to lookup in the data set.']},
                 {'sub_step_name': 'created file 3', 'file_name': 'raw/table_3.csv', 'processing_notes': ['None.']},
             ]
         },
