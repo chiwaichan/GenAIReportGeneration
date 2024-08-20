@@ -16,6 +16,7 @@ client = boto3.client("bedrock-runtime", region_name="us-east-1")
 model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
 
 def invoke_model(prompt):
+    # print(f"prompt= {prompt}")
     # Define the prompt for the model.
     # prompt = "Describe the purpose of a 'hello world' program in one line."
 
@@ -53,22 +54,13 @@ def invoke_model(prompt):
     return response_text
 
 
-def calculate_weighted_score(fields, weights):
-    
-    """Calculate a weighted confidence score based on provided weights."""
-    total_score = 0
-    total_weight = sum(weights.values())
-    for field in fields:
-        weight = weights.get(field['name'], 1)  # Default weight is 1 if not specified
-        total_score += field['confidence'] * weight
-    return total_score / total_weight
 
 def generate_chart(data, chart_title):
     """Generate a bar chart for the weighted confidence scores."""
     extracted_files = data["extracted_files"]
     processed_files = data["processed_files"]
 
-    doc_names_extracted_files = [item['document_name'] for item in extracted_files]
+    doc_names_extracted_files = [item['file_name'] for item in extracted_files]
     scores_extracted_files = [item['weighted_score'] for item in extracted_files]
 
     plt.figure(figsize=(10, 6))
@@ -85,9 +77,14 @@ def generate_chart(data, chart_title):
     buffer.seek(0)
     return buffer
 
-def generate_report(data, file_name, weights):
-    # invoke_model(f"Tell me what you see in this JSON string {json.dumps(data)}")
+def generate_report(data, file_name):
+    populate_with_values(data)
 
+    print("outcome")
+    print(json.dumps(data, indent=2))
+
+
+    return
     # Create the PDF document
     processed_files = data["processed_files"]
     extracted_files = data["extracted_files"]
@@ -116,9 +113,9 @@ def generate_report(data, file_name, weights):
     
     # Calculate weighted scores and add details for each document in processed_files
     for doc in processed_files:
-        doc['weighted_score'] = calculate_weighted_score(doc['fields'], weights)
+        doc['weighted_score'] = 1.0
         doc_details = f"""
-        <b>Document Name:</b> {doc['document_name']}<br/>
+        <b>Document Name:</b> {doc['file_name']}<br/>
         <b>Total Fields Extracted:</b> {len(doc['fields'])}<br/>
         <b>Weighted Confidence Score:</b> {doc['weighted_score']:.2f}<br/>
         <b>Processing steps for File:</b> {'<br/>'.join(doc['processing_steps'])}<br/>
@@ -126,13 +123,13 @@ def generate_report(data, file_name, weights):
         <br/>
         <br/>
         """
-        elements.append(Paragraph(f"Document: {doc['document_name']}", heading_style))
+        elements.append(Paragraph(f"Document: {doc['file_name']}", heading_style))
         elements.append(Paragraph(doc_details, normal_style))
         
         # Table Data
         table_data = [['Field Name', 'Extracted Value', 'Confidence Score', 'Weight', 'Notes']]  # Header
         for field in doc['fields']:
-            weight = weights.get(field['name'], 1)
+            weight = 1
             confidence_score, confidence_score_explaination = invoke_model(f"Give me a confidence score out of 1.0 for the following notes about processing a table of data, give me a response like this where the score is returned and the detailed explantion followings a '|': '0.92 | This is the explanation and so on'. If the Notes are 'None' then that is a good thing. The notes is: {''.join([note + ' ' for note in field['processing_notes']])}").split('|', 1)
 
             print(f"confidence_score {confidence_score}")
@@ -166,7 +163,7 @@ def generate_report(data, file_name, weights):
     
     # Calculate weighted scores for extracted_files (this was missing)
     for doc in extracted_files:
-        doc['weighted_score'] = calculate_weighted_score(doc['fields'], weights)
+        doc['weighted_score'] = 2.0
     
     # Generate and add chart
     chart_buffer = generate_chart(data, "Weighted Confidence Scores by Document")
@@ -177,59 +174,54 @@ def generate_report(data, file_name, weights):
     # Build the PDF
     pdf.build(elements)
 
+def populate_with_values(data):
+    for step in data['processing_steps']:
+        print(f"Step Name: {step['step_name']}")
+        
+        # Loop over processing sub-steps
+        for sub_step in step['processing_sub_steps']:
+            print(f"  Sub Step Name: {sub_step['sub_step_name']}")
+            print(f"  File Name: {sub_step['file_name']}")
+            print(f"  Processing Notes: {', '.join(sub_step['processing_notes'])}")
+
+            confidence_score_response = invoke_model(f"Give me a confidence score out of 1.0 for the following notes about processing a table of data, give me a response like this where the score is returned and the detailed explantion followings a '|': '0.92 | This is the explanation and so on'. If the Notes are 'None' then that is a good thing. The notes is: {''.join([note + ' ' for note in sub_step['processing_notes']])}").split('|', 1)
+
+            sub_step["confidence_score"] = confidence_score = confidence_score_response[0]
+            sub_step["confidence_score_explanation"] = confidence_score_explanation = confidence_score_response[1]
+
+            # print(f"me score {confidence_score_response}")
+
+    
+
+
 data = {
     "report_context": "",
     "high_level": "",
-    "extracted_files":    [
+    "processing_steps":    [
         {
-            'document_name': 'raw/table_1.csv',
-            'method': 'ocr',
-            'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98, 'processing_notes': ['Spelling Mistakes.']},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95, 'processing_notes': ['Missing Values.']},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96, 'processing_notes': ['None.']},
-            ],
-            'processing_steps': ['None.']
+            'step_name': 'process step 1',
+            'weight': 1,
+            'processing_notes': ['Found 3 tables.'],
+            'processing_sub_steps': [
+                {'sub_step_name': 'created file 1', 'file_name': 'raw/table_1.csv', 'processing_notes': ['Found 100 rows.', 
+                                                                                                         'Found 90/100 rows is relevant data.', 
+                                                                                                         'Deleted 3 Rows that are used for Totals.']},
+                {'sub_step_name': 'created file 2', 'file_name': 'raw/table_2.csv', 'processing_notes': ['Missing Values.']},
+                {'sub_step_name': 'created file 3', 'file_name': 'raw/table_3.csv', 'processing_notes': ['None.']},
+            ]
         },
         {
-            'document_name': 'raw/table_2.csv',
-            'method': 'ocr',
-            'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88, 'processing_notes': ['None.']},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90, 'processing_notes': ['None.']},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89, 'processing_notes': ['None.']},
-            ],
-            'processing_steps': ['Minor misalignment on total amount.']
-        }
-    ],
-    "processed_files":    [
-        {
-            'document_name': 'processed/table_1.csv',
-            'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.98, 'processing_notes': ['Spelling Mistakes for 1/10 rows.']},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.95, 'processing_notes': ['Missing Values for 1/10 rows.']},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.96, 'processing_notes': ['None.']},
-            ],
-            'processing_steps': ['None.']
-        },
-        {
-            'document_name': 'processed/table_2.csv',
-            'fields': [
-                {'name': 'Field number 1', 'value': 'Value 1', 'confidence': 0.88, 'processing_notes': ['None.']},
-                {'name': 'Field number 2', 'value': 'Value 2', 'confidence': 0.90, 'processing_notes': ['None.']},
-                {'name': 'Field number 3', 'value': 'Value 3', 'confidence': 0.89, 'processing_notes': ['None.']},
-            ],
-            'processing_steps': ['Fixed spelling mistake in 10/10 rows.', 'did some other stuff.']
+            'step_name': 'process step 2',
+            'processing_sub_steps': [
+                {'sub_step_name': 'normalise file 1', 'file_name': 'normalise/table_1.csv', 'processing_notes': ['Spelling Mistakes.']},
+                {'sub_step_name': 'normalise file 2', 'file_name': 'normalise/table_2.csv', 'processing_notes': ['Missing Values.']},
+                {'sub_step_name': 'normalise file 3', 'file_name': 'normalise/table_3.csv', 'processing_notes': ['None.']},
+            ]
         }
     ]
 }
 
-# Define weights for each field
-weights = {
-    'Invoice Number': 2.0,
-    'Date': 1.5,
-    'Total Amount': 3.0
-}
 
 # Generate the report with charts
-generate_report(data, "report_with_charts.pdf", weights)
+generate_report(data, "report_with_charts.pdf")
+
